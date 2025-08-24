@@ -43,7 +43,8 @@ function InfiniteDMRG(
         bondDim::Int64,
         locHam::Vector,
         incHam,
-        glueHam,
+        glueHam;
+        correlation::Dict{String, Vector{Tuple{String, Vector{Int64}, Float64}}}=Dict(),
     )
     sysOps = Dict((k, 1) => v for (k,v) in InitOperators())
     envOps = copy(sysOps)
@@ -58,7 +59,7 @@ function InfiniteDMRG(
         envHam = ManifestMatrix(locHam, envOps)
     end
 
-    results = Dict("vals" => Float64[], "vecs" => Vector{Float64}[])
+    results = Dict{String, Any}("vals" => Float64[], "vecs" => Vector{Float64}[])
 
     @showprogress desc="bond dimension=$(bondDim)" for numSites in 1:maxSites
         sysOps = Dict(k => kron(v,  I(2)) for (k,v) in sysOps)
@@ -79,6 +80,10 @@ function InfiniteDMRG(
         push!(results["vals"], vals[1])
         push!(results["vecs"], vecs[:, 1])
 
+        if numSites == maxSites
+            break
+        end
+
         groundState = vecs[:, 1]
         groundStateTensor = reshape(groundState, (size(envHam)[1], size(sysHam)[1]))'
         F = svd(groundStateTensor)
@@ -92,6 +97,10 @@ function InfiniteDMRG(
         sysOps = Dict(k => sysRotate' * op * sysRotate for (k, op) in sysOps)
         envOps = Dict(k => envRotate' * op * envRotate for (k, op) in envOps)
     end
-    return results
 
+    for (name, operator) in correlation
+        operatorMatrix = kron(ManifestMatrix(operator, sysOps), envId)
+        results[name] = results["vecs"][end]' * operatorMatrix * results["vecs"][end]
+    end
+    return results
 end
