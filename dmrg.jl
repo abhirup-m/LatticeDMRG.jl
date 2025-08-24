@@ -45,8 +45,6 @@ function InfiniteDMRG(
         incHam,
         glueHam,
     )
-    @assert maxSites > 1 "maxSites = 1, nothing to do!"
-
     sysOps = Dict((k, 1) => v for (k,v) in InitOperators())
     envOps = copy(sysOps)
 
