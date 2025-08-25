@@ -51,6 +51,7 @@ function InfiniteDMRG(
         correlation::Dict{String, Vector{Tuple{String, Vector{Int64}, Float64}}}=Dict(),
         spin::Float64=0.5,
         degTol::Float64=0.,
+        maxTruncErr::Float64=0.,
     )
     
     ident = I(Int(2 * spin + 1))
@@ -69,7 +70,7 @@ function InfiniteDMRG(
 
     results = Dict{String, Any}("vals" => Float64[], "vecs" => Vector{Float64}[])
 
-    @showprogress desc="bond dimension=$(bondDim)" for numSites in 1:maxSites
+    for numSites in 1:maxSites
         sysOps = Dict(k => kron(v, ident) for (k,v) in sysOps)
         merge!(sysOps, Dict((k, numSites+1) => kron(sysId, v) for (k,v) in InitOperators(spin)))
         envOps = Dict(k => kron(ident, v) for (k,v) in envOps)
@@ -95,9 +96,15 @@ function InfiniteDMRG(
         groundState = vecs[:, 1]
         groundStateTensor = reshape(groundState, (size(envHam)[1], size(sysHam)[1]))'
         F = svd(groundStateTensor)
-        effectiveBondDim = minimum((bondDim, length(F.S)))
+        if maxTruncErr ≠ 0
+            truncErr = 1 .- cumsum(F.S .^ 2)
+            effectiveBondDim = findlast(>(maxTruncErr), truncErr)
+        else
+            effectiveBondDim = minimum((bondDim, length(F.S)))
+        end
+        truncErr = 1 .- sum(F.S[1:effectiveBondDim] .^ 2)
         effectiveBondDim = count(>(F.S[effectiveBondDim] - degTol), F.S)
-        println(effectiveBondDim)
+        println("N = $(2 + 2 * numSites), χ=$(effectiveBondDim), Δ=$(truncErr)")
         sysRotate = F.U[:, 1:effectiveBondDim]
         envRotate = F.V[:, 1:effectiveBondDim]
 
