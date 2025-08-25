@@ -14,13 +14,13 @@ function exact_heisenberg(N::Int)
           0.0 0.0]
     Sm = [0.0 0.0;
           1.0 0.0]
-    Sz = [1.0 0.0;
-          0.0 -1.0]
+    Sz = [0.5 0.0;
+          0.0 -0.5]
 
     H = zeros(2^N, 2^N)
 
     for i in 1:(N-1)
-        term = 0.25 * kron(Sz, Sz)
+        term = kron(Sz, Sz)
         term += 0.5 * kron(Sp, Sm)
         term += 0.5 * kron(Sm, Sp)
         H .+= kron(I(2^(i-1)), term, I(2^(N - i - 1)))

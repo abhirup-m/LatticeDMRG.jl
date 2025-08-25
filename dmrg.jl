@@ -1,13 +1,17 @@
 using LinearAlgebra, ProgressMeter
 
 
-function InitOperators()
-    Sp = [0.0 1.0;
-          0.0 0.0]
-    Sm = [0.0 0.0;
-          1.0 0.0]
-    Sz = [1.0 0.0;
-          0.0 -1.0]
+function InitOperators(
+        spin::Float64,
+    )
+    sigmazValues = spin:-1:-spin
+    basis = Matrix(I(length(sigmazValues)))
+    Sp = 0. .* basis
+    for (i, Sz) in enumerate(sigmazValues[1:end-1])
+        Sp[i, i+1] = √(spin * (spin + 1) - Sz * (Sz - 1))
+    end
+    Sm = Sp'
+    Sz = 0.5 .* (Sp * Sm - Sm * Sp)
     return Dict('z' => Sz, '+' => Sp, '-' => Sm)
 end
 
@@ -45,12 +49,15 @@ function InfiniteDMRG(
         incHam,
         glueHam;
         correlation::Dict{String, Vector{Tuple{String, Vector{Int64}, Float64}}}=Dict(),
+        spin::Float64=0.5
     )
-    sysOps = Dict((k, 1) => v for (k,v) in InitOperators())
-    envOps = copy(sysOps)
+    
+    ident = I(Int(2 * spin + 1))
+    sysId = ident
 
-    sysId = I(2)
-    envId = I(2)
+    envId = copy(sysId)
+    sysOps = Dict((k, 1) => v for (k,v) in InitOperators(spin))
+    envOps = copy(sysOps)
 
     sysHam = 0 * sysId
     envHam = 0 * envId
@@ -62,16 +69,16 @@ function InfiniteDMRG(
     results = Dict{String, Any}("vals" => Float64[], "vecs" => Vector{Float64}[])
 
     @showprogress desc="bond dimension=$(bondDim)" for numSites in 1:maxSites
-        sysOps = Dict(k => kron(v,  I(2)) for (k,v) in sysOps)
-        merge!(sysOps, Dict((k, numSites+1) => kron(sysId, v) for (k,v) in InitOperators()))
-        envOps = Dict(k => kron(I(2), v) for (k,v) in envOps)
-        merge!(envOps, Dict((k, numSites+1) => kron(v, envId) for (k,v) in InitOperators()))
+        sysOps = Dict(k => kron(v, ident) for (k,v) in sysOps)
+        merge!(sysOps, Dict((k, numSites+1) => kron(sysId, v) for (k,v) in InitOperators(spin)))
+        envOps = Dict(k => kron(ident, v) for (k,v) in envOps)
+        merge!(envOps, Dict((k, numSites+1) => kron(v, envId) for (k,v) in InitOperators(spin)))
 
-        sysHam = kron(sysHam, I(2)) + ManifestMatrix(incHam(numSites+1), sysOps)
-        envHam = kron(I(2), envHam) + ManifestMatrix(incHam(numSites+1), envOps)
+        sysHam = kron(sysHam, ident) + ManifestMatrix(incHam(numSites+1), sysOps)
+        envHam = kron(ident, envHam) + ManifestMatrix(incHam(numSites+1), envOps)
 
-        sysId = kron(sysId, I(2))
-        envId = kron(I(2), envId)
+        sysId = kron(sysId, ident)
+        envId = kron(ident, envId)
 
         superHam = kron(sysId, envHam) + kron(sysHam, envId)
         superHam += Glue(glueHam(numSites+1), sysOps, envOps)
