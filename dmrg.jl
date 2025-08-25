@@ -49,7 +49,8 @@ function InfiniteDMRG(
         incHam,
         glueHam;
         correlation::Dict{String, Vector{Tuple{String, Vector{Int64}, Float64}}}=Dict(),
-        spin::Float64=0.5
+        spin::Float64=0.5,
+        degTol::Float64=0.,
     )
     
     ident = I(Int(2 * spin + 1))
@@ -94,8 +95,11 @@ function InfiniteDMRG(
         groundState = vecs[:, 1]
         groundStateTensor = reshape(groundState, (size(envHam)[1], size(sysHam)[1]))'
         F = svd(groundStateTensor)
-        sysRotate = F.U[:, 1:minimum((bondDim, length(F.S)))]
-        envRotate = F.V[:, 1:minimum((bondDim, length(F.S)))]
+        effectiveBondDim = minimum((bondDim, length(F.S)))
+        effectiveBondDim = count(>(F.S[effectiveBondDim] - degTol), F.S)
+        println(effectiveBondDim)
+        sysRotate = F.U[:, 1:effectiveBondDim]
+        envRotate = F.V[:, 1:effectiveBondDim]
 
         sysId = sysRotate' * sysId * sysRotate
         envId = envRotate' * envId * envRotate
